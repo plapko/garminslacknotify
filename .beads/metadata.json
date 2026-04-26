@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "garminslacknotify",
+  "project_id": "28d1fbdf-a9e7-4102-b10b-ebb728246184"
+}
