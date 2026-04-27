@@ -170,11 +170,12 @@ func (c *Client) authenticate() error {
 	}
 
 	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
-	// body2 is the final /app/ page — extract its CSRF token for API requests.
+	// body2 is the final page (usually /app/) — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
 		c.captureJWTFGP()
 		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+		c.ensureAppCSRF()
 		return nil
 	}
 
@@ -195,7 +196,28 @@ func (c *Client) authenticate() error {
 	c.appCSRF = extractAppCSRF(appBody)
 	c.captureJWTFGP()
 	c.debugf("auth complete via body/ticket flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+	c.ensureAppCSRF()
 	return nil
+}
+
+// ensureAppCSRF fetches /app/ explicitly if the CSRF token wasn't found in the
+// auth redirect body. Garmin may land on /modern/ first and redirect to /app/
+// without embedding the token in the intermediate page.
+func (c *Client) ensureAppCSRF() {
+	if c.appCSRF != "" {
+		return
+	}
+	c.debugf("CSRF token not found in auth response — fetching /app/ explicitly")
+	resp, err := c.http.Get(c.connectBase + "/app/")
+	if err != nil {
+		c.debugf("ensureAppCSRF: GET /app/ error: %v", err)
+		return
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	c.appCSRF = extractAppCSRF(body)
+	c.captureJWTFGP()
+	c.debugf("ensureAppCSRF: CSRF found=%v", c.appCSRF != "")
 }
 
 // captureJWTFGP reads JWT_FGP from the cookie jar scoped to /app/.
