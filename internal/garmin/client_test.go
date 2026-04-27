@@ -31,7 +31,7 @@ func mockGarminServer(activities []map[string]interface{}) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mux.HandleFunc("/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/proxy/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(activities)
 	})

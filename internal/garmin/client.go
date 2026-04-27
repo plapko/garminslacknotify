@@ -187,7 +187,7 @@ func (c *Client) authenticate() error {
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	dateStr := date.Format("2006-01-02")
-	u := c.connectBase + "/activitylist-service/activities/search/activities"
+	u := c.connectBase + "/proxy/activitylist-service/activities/search/activities"
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
