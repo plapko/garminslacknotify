@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const snippetLen = 500
@@ -20,12 +21,32 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	fmt.Fprintf(t.Out, "[debug] %s → %s %s\n", t.Label, req.Method, req.URL)
+	// Log outgoing cookies so we can verify the session is being sent.
+	var cookieNames []string
+	for _, c := range req.Cookies() {
+		cookieNames = append(cookieNames, c.Name)
+	}
+	cookieSummary := "(none)"
+	if len(cookieNames) > 0 {
+		cookieSummary = strings.Join(cookieNames, ", ")
+	}
+	fmt.Fprintf(t.Out, "[debug] %s → %s %s\n        cookies: %s\n",
+		t.Label, req.Method, req.URL, cookieSummary)
 
 	resp, err := t.Base.RoundTrip(req)
 	if err != nil {
 		fmt.Fprintf(t.Out, "[debug] %s ← error: %v\n\n", t.Label, err)
 		return nil, err
+	}
+
+	// Log Set-Cookie headers so we can track session establishment.
+	var setCookies []string
+	for _, sc := range resp.Cookies() {
+		setCookies = append(setCookies, sc.Name+"="+sc.Value[:min(len(sc.Value), 12)]+"…")
+	}
+	setCookieLine := ""
+	if len(setCookies) > 0 {
+		setCookieLine = "\n        set-cookie: " + strings.Join(setCookies, ", ")
 	}
 
 	body, readErr := io.ReadAll(resp.Body)
@@ -35,14 +56,21 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if len(snippet) > snippetLen {
 		snippet = snippet[:snippetLen] + "…"
 	}
-	fmt.Fprintf(t.Out, "[debug] %s ← %s  (%d bytes)\n%s\n\n",
-		t.Label, resp.Status, len(body), indent(snippet))
+	fmt.Fprintf(t.Out, "[debug] %s ← %s  (%d bytes)%s\n%s\n\n",
+		t.Label, resp.Status, len(body), setCookieLine, indent(snippet))
 
 	if readErr != nil {
 		return nil, readErr
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 	return resp, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func indent(s string) string {
