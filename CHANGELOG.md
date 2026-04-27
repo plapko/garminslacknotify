@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/plapko/garminslacknotify/compare/v0.4.2...v0.4.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* extract app CSRF token and send with activities request ([b81cd74](https://github.com/plapko/garminslacknotify/commit/b81cd746b7c943b2b5dceb8243b9fcd895fc6e1c))
+
 ## [0.4.2](https://github.com/plapko/garminslacknotify/compare/v0.4.1...v0.4.2) (2026-04-27)
 
 
