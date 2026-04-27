@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/plapko/garminslacknotify/compare/v1.0.0...v1.0.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* create config directory with 0700 instead of 0755 ([be04078](https://github.com/plapko/garminslacknotify/commit/be04078dcfcaccbd9236a080998fe609d333b75d))
+
 ## [1.0.0](https://github.com/plapko/garminslacknotify/releases/tag/v1.0.0) (2026-04-27)
 
 ### Features
