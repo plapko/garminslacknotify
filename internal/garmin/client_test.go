@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -93,6 +94,53 @@ func TestFetchActivities_ReturnsEmptySlice(t *testing.T) {
 	}
 	if len(activities) != 0 {
 		t.Errorf("got %d activities, want 0", len(activities))
+	}
+}
+
+func TestFetchActivities_SessionCacheSkipsAuth(t *testing.T) {
+	authCalls := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/sso/signin", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			fmt.Fprint(w, `<input name="_csrf" value="csrf">`)
+			return
+		}
+		authCalls++
+		http.Redirect(w, r, "/app/?ticket=ST-test", http.StatusFound)
+	})
+	mux.HandleFunc("/app/", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "sess"})
+		fmt.Fprint(w, `<html><head><meta name="csrf-token" content="tok"/></head></html>`)
+	})
+	raw := []map[string]interface{}{
+		{"activityType": map[string]interface{}{"typeKey": "running"}, "duration": 600.0, "distance": 1000.0, "startTimeLocal": time.Now().Format("2006-01-02") + " 08:00:00"},
+	}
+	mux.HandleFunc("/gc-api/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(raw)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	sessionFile := filepath.Join(t.TempDir(), "session.json")
+	date := time.Now()
+
+	// First call: authenticates and saves session.
+	c1 := garmin.NewWithBaseURL("u@example.com", "p", srv.URL, srv.URL).SetSessionFile(sessionFile)
+	if _, err := c1.FetchActivities(date); err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if authCalls != 1 {
+		t.Fatalf("expected 1 auth call after first fetch, got %d", authCalls)
+	}
+
+	// Second call: loads session from cache, no auth.
+	c2 := garmin.NewWithBaseURL("u@example.com", "p", srv.URL, srv.URL).SetSessionFile(sessionFile)
+	if _, err := c2.FetchActivities(date); err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if authCalls != 1 {
+		t.Errorf("expected still 1 auth call after cached fetch, got %d", authCalls)
 	}
 }
 

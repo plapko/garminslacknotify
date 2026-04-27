@@ -61,12 +61,14 @@ func main() {
 
 	// Step 1: fetch Garmin activities
 	spinner, _ := pterm.DefaultSpinner.Start("Connecting to Garmin Connect…")
+	sessionFile := filepath.Join(filepath.Dir(*configPath), "session.json")
 	var garminClient *garmin.Client
 	if *debug {
 		garminClient = garmin.NewWithDebug(cfg.Garmin.Email, cfg.Garmin.Password, os.Stderr)
 	} else {
 		garminClient = garmin.New(cfg.Garmin.Email, cfg.Garmin.Password)
 	}
+	garminClient.SetSessionFile(sessionFile)
 	activities, err := garminClient.FetchActivities(date)
 	if err != nil {
 		spinner.Fail("Garmin Connect: " + err.Error())

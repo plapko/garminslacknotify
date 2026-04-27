@@ -28,6 +28,10 @@ type Activity struct {
 	Distance float64 // metres, 0 if not applicable
 }
 
+// errSessionExpired is returned by fetchActivities when the server responds
+// with 401/403, indicating the cached session needs to be refreshed.
+var errSessionExpired = errors.New("garmin session expired")
+
 // Client authenticates with Garmin Connect and fetches activities.
 type Client struct {
 	email       string
@@ -37,7 +41,8 @@ type Client struct {
 	http        *http.Client
 	debug       io.Writer
 	appCSRF     string // CSRF token from the Garmin Connect app page
-	jwtFGP      string // JWT fingerprint cookie (path-scoped to /app/, must be added manually to /proxy/ requests)
+	jwtFGP      string // JWT fingerprint cookie (captured but currently unused)
+	sessionFile string // path to session cache file; empty disables caching
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
@@ -92,12 +97,34 @@ func (c *Client) debugf(format string, args ...any) {
 	}
 }
 
-// FetchActivities authenticates and returns activities for the given date.
+// FetchActivities returns activities for the given date.
+// It tries a cached session first; if the session is expired it re-authenticates
+// once and saves the new session before retrying.
 func (c *Client) FetchActivities(date time.Time) ([]Activity, error) {
+	if c.sessionFile != "" && c.loadSession() == nil {
+		activities, err := c.fetchActivities(date)
+		if err == nil {
+			return activities, nil
+		}
+		if errors.Is(err, errSessionExpired) {
+			c.debugf("cached session expired — clearing cache and re-authenticating")
+			c.resetJar()
+			c.appCSRF = ""
+		} else {
+			return nil, err
+		}
+	}
+
 	if err := c.authenticate(); err != nil {
 		return nil, err
 	}
+	c.saveSession()
 	return c.fetchActivities(date)
+}
+
+func (c *Client) resetJar() {
+	jar, _ := cookiejar.New(nil)
+	c.http.Jar = jar
 }
 
 func (c *Client) authenticate() error {
@@ -262,6 +289,11 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	resp.Body.Close()
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		c.debugf("activities: HTTP %d — session expired", resp.StatusCode)
+		return nil, errSessionExpired
 	}
 
 	// Garmin returns {} (empty object) or "null" when there are no activities.
