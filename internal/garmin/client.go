@@ -41,6 +41,7 @@ type Client struct {
 	http         *http.Client
 	debug        io.Writer
 	appCSRF     string // CSRF token from the Garmin Connect app page
+	jwtWeb      string // JWT_WEB cookie value — sent as Bearer token to gc-api
 	jwtFGP      string // JWT fingerprint cookie (captured but currently unused)
 	sessionFile string // path to session cache file; empty disables caching
 }
@@ -214,9 +215,9 @@ func (c *Client) authenticate() error {
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
 		c.captureJWTFGP()
-		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+		c.captureJWTWEB()
+		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_WEB: %v)", c.appCSRF != "", c.jwtWeb != "")
 		c.ensureAppCSRF()
-		c.warmupSpringSession()
 		return nil
 	}
 
@@ -236,9 +237,9 @@ func (c *Client) authenticate() error {
 	resp3.Body.Close()
 	c.appCSRF = extractAppCSRF(appBody)
 	c.captureJWTFGP()
-	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+	c.captureJWTWEB()
+	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_WEB: %v)", c.appCSRF != "", c.jwtWeb != "")
 	c.ensureAppCSRF()
-	c.warmupSpringSession()
 	return nil
 }
 
@@ -263,7 +264,6 @@ func (c *Client) ensureAppCSRF() {
 }
 
 // captureJWTFGP reads JWT_FGP from the cookie jar scoped to /app/.
-// The cookie is path-restricted and won't be sent automatically to /proxy/ endpoints.
 func (c *Client) captureJWTFGP() {
 	appURL, _ := url.Parse(c.connectBase + "/app/")
 	for _, cookie := range c.http.Jar.Cookies(appURL) {
@@ -274,44 +274,19 @@ func (c *Client) captureJWTFGP() {
 	}
 }
 
-// warmupSpringSession authenticates with Garmin's Java/Spring backend
-// (/modern/, /gc-api/) to obtain an authenticated SESSIONID cookie. Spring is
-// a separate CAS service from the Node.js /app/ frontend and requires its own
-// CAS service ticket.
-//
-// /sso/signin is Garmin's branded form endpoint — it always shows a login page.
-// /sso/login is the standard CAS protocol endpoint: with a valid CASTGC (TGT)
-// cookie it silently issues a new service ticket and redirects to the service URL.
-// Go follows the chain: SSO → /modern/?ticket=ST-xxx → Spring validates → SESSIONID.
-func (c *Client) warmupSpringSession() {
-	params := url.Values{
-		"service": {c.connectBase + "/modern/"},
-	}
-	// Strip Origin/Referer on cross-domain hops (same reason as in authenticate()).
-	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
-		req.Header.Del("Origin")
-		req.Header.Del("Referer")
-		return nil
-	}
-	resp, err := c.http.Get(c.ssoBase + "/sso/login?" + params.Encode())
-	c.http.CheckRedirect = nil
-	if err != nil {
-		c.debugf("warmupSpringSession: error: %v", err)
-		return
-	}
-	io.ReadAll(resp.Body) //nolint:errcheck
-	resp.Body.Close()
-
-	modernURL, _ := url.Parse(c.connectBase + "/modern/")
-	var hasSessionID bool
-	for _, ck := range c.http.Jar.Cookies(modernURL) {
-		if ck.Name == "SESSIONID" {
-			hasSessionID = true
-			break
+// captureJWTWEB reads JWT_WEB from the cookie jar. JWT_WEB is a signed JWT
+// issued by the Node.js /app/ frontend; sending it as a Bearer token lets the
+// Java/Spring gc-api backend verify the caller without a separate CAS session.
+func (c *Client) captureJWTWEB() {
+	appURL, _ := url.Parse(c.connectBase + "/app/")
+	for _, cookie := range c.http.Jar.Cookies(appURL) {
+		if cookie.Name == "JWT_WEB" {
+			c.jwtWeb = cookie.Value
+			return
 		}
 	}
-	c.debugf("warmupSpringSession: %s (authenticated SESSIONID: %v)", resp.Status, hasSessionID)
 }
+
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	dateStr := date.Format("2006-01-02")
@@ -326,12 +301,17 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	q.Set("start", "0")
 	req.URL.RawQuery = q.Encode()
 	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Origin", c.connectBase)
+	req.Header.Set("Referer", c.connectBase+"/modern/home")
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
 	req.Header.Set("Sec-Fetch-Mode", "cors")
 	req.Header.Set("Sec-Fetch-Dest", "empty")
 	req.Header.Set("NK", "NT")
 	if c.appCSRF != "" {
 		req.Header.Set("connect-csrf-token", c.appCSRF)
+	}
+	if c.jwtWeb != "" {
+		req.Header.Set("Authorization", "Bearer "+c.jwtWeb)
 	}
 
 	resp, err := c.http.Do(req)
