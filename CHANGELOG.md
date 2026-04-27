@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/plapko/garminslacknotify/compare/v0.5.0...v0.5.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** remove extra headers, update User-Agent to Chrome 147/Windows ([9567cc0](https://github.com/plapko/garminslacknotify/commit/9567cc053c7a65f320af656eaa0483a77dbe5b2e))
+
 ## [0.5.0](https://github.com/plapko/garminslacknotify/compare/v0.4.9...v0.5.0) (2026-04-27)
 
 
