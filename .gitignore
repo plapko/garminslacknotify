@@ -32,6 +32,10 @@ go.work.sum
 # .vscode/
 
 # Beads / Dolt files (added by bd init)
+.beads/
 .dolt/
 *.db
 .beads-credential-key
+
+# Agent instructions (local only)
+AGENTS.md
