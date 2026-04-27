@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8](https://github.com/plapko/garminslacknotify/compare/v0.5.7...v0.5.8) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** populate jwtWeb from cached session on startup ([3aad094](https://github.com/plapko/garminslacknotify/commit/3aad09423dcb48c27b4d25ebb6c6553588238ed7))
+
 ## [0.5.7](https://github.com/plapko/garminslacknotify/compare/v0.5.6...v0.5.7) (2026-04-27)
 
 
