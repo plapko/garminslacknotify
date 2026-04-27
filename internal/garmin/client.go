@@ -37,6 +37,7 @@ type Client struct {
 	http        *http.Client
 	debug       io.Writer
 	appCSRF     string // CSRF token from the Garmin Connect app page
+	jwtFGP      string // JWT fingerprint cookie (path-scoped to /app/, must be added manually to /proxy/ requests)
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
@@ -167,7 +168,8 @@ func (c *Client) authenticate() error {
 	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
-		c.debugf("auth complete via redirect flow (app CSRF: %v)", c.appCSRF != "")
+		c.captureJWTFGP()
+		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 		return nil
 	}
 
@@ -186,8 +188,21 @@ func (c *Client) authenticate() error {
 	appBody, _ := io.ReadAll(resp3.Body)
 	resp3.Body.Close()
 	c.appCSRF = extractAppCSRF(appBody)
-	c.debugf("auth complete via body/ticket flow (app CSRF: %v)", c.appCSRF != "")
+	c.captureJWTFGP()
+	c.debugf("auth complete via body/ticket flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 	return nil
+}
+
+// captureJWTFGP reads JWT_FGP from the cookie jar scoped to /app/.
+// The cookie is path-restricted and won't be sent automatically to /proxy/ endpoints.
+func (c *Client) captureJWTFGP() {
+	appURL, _ := url.Parse(c.connectBase + "/app/")
+	for _, cookie := range c.http.Jar.Cookies(appURL) {
+		if cookie.Name == "JWT_FGP" {
+			c.jwtFGP = cookie.Value
+			return
+		}
+	}
 }
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
@@ -208,6 +223,10 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	if c.appCSRF != "" {
 		req.Header.Set("X-CSRF-Token", c.appCSRF)
+	}
+	// JWT_FGP is path-scoped to /app/ in the cookie jar; add it manually.
+	if c.jwtFGP != "" {
+		req.AddCookie(&http.Cookie{Name: "JWT_FGP", Value: c.jwtFGP})
 	}
 
 	resp, err := c.http.Do(req)
