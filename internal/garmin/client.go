@@ -148,13 +148,18 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	q.Set("limit", "100")
 	req.URL.RawQuery = q.Encode()
 	req.Header.Set("NK", "NT")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	var raw []struct {
 		ActivityType struct {
@@ -163,8 +168,12 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		Duration float64 `json:"duration"`
 		Distance float64 `json:"distance"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, err
+	if err := json.Unmarshal(body, &raw); err != nil {
+		snippet := string(body)
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		return nil, fmt.Errorf("garmin activities: HTTP %d, unexpected response: %s", resp.StatusCode, snippet)
 	}
 
 	activities := make([]Activity, len(raw))
