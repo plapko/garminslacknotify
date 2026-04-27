@@ -9,12 +9,14 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"strings"
 	"time"
 )
 
 const (
 	defaultSSOBase     = "https://sso.garmin.com"
 	defaultConnectBase = "https://connect.garmin.com"
+	userAgent          = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 // Activity holds the workout data needed for status formatting.
@@ -46,8 +48,23 @@ func NewWithBaseURL(email, password, ssoBase, connectBase string) *Client {
 		password:    password,
 		ssoBase:     ssoBase,
 		connectBase: connectBase,
-		http:        &http.Client{Jar: jar},
+		http: &http.Client{
+			Jar:       jar,
+			Transport: &browserTransport{base: http.DefaultTransport},
+		},
 	}
+}
+
+// browserTransport adds a browser User-Agent to every request so Garmin
+// does not reject the connection at the network layer.
+type browserTransport struct {
+	base http.RoundTripper
+}
+
+func (t *browserTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := req.Clone(req.Context())
+	r.Header.Set("User-Agent", userAgent)
+	return t.base.RoundTrip(r)
 }
 
 // FetchActivities authenticates and returns activities for the given date.
@@ -87,7 +104,14 @@ func (c *Client) authenticate() error {
 		"clientId":  {"GarminConnect"},
 		"gauthHost": {c.ssoBase + "/sso"},
 	}
-	resp2, err := c.http.PostForm(signinURL, form)
+	req2, err := http.NewRequest(http.MethodPost, signinURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("garmin login failed: %w", err)
+	}
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req2.Header.Set("Origin", c.ssoBase)
+	req2.Header.Set("Referer", signinURL+"?"+params.Encode())
+	resp2, err := c.http.Do(req2)
 	if err != nil {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
