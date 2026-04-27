@@ -246,6 +246,8 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	req.URL.RawQuery = q.Encode()
 	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	req.Header.Set("Origin", c.connectBase)
+	req.Header.Set("Referer", c.connectBase+"/app/")
 	if c.appCSRF != "" {
 		req.Header.Set("connect-csrf-token", c.appCSRF)
 	}
