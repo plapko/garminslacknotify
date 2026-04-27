@@ -11,6 +11,7 @@ import (
 	"github.com/plapko/garminslacknotify/internal/formatter"
 	"github.com/plapko/garminslacknotify/internal/garmin"
 	"github.com/plapko/garminslacknotify/internal/slack"
+	"github.com/pterm/pterm"
 )
 
 var version = "dev"
@@ -31,19 +32,19 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if os.IsNotExist(err) {
 		if writeErr := config.WriteTemplate(*configPath); writeErr != nil {
-			fmt.Fprintf(os.Stderr, "Error: could not create config: %v\n", writeErr)
+			pterm.Error.Printf("could not create config: %v\n", writeErr)
 			os.Exit(1)
 		}
-		fmt.Printf("Config file created: %s\n", *configPath)
-		fmt.Println("Edit it with your Garmin credentials and Slack token, then run again.")
+		pterm.Info.Printf("Config file created: %s\n", *configPath)
+		pterm.Println("Edit it with your Garmin credentials and Slack token, then run again.")
 		return
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		pterm.Error.Println(err)
 		os.Exit(1)
 	}
 	if err := cfg.Validate(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		pterm.Error.Println(err)
 		os.Exit(1)
 	}
 
@@ -51,22 +52,35 @@ func main() {
 	if *dateStr != "" {
 		parsed, err := time.Parse("2006-01-02", *dateStr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: invalid date format, use YYYY-MM-DD\n")
+			pterm.Error.Println("invalid date format, use YYYY-MM-DD")
 			os.Exit(1)
 		}
 		date = parsed
 	}
 
+	// Step 1: fetch Garmin activities
+	spinner, _ := pterm.DefaultSpinner.Start("Connecting to Garmin Connect…")
 	garminClient := garmin.New(cfg.Garmin.Email, cfg.Garmin.Password)
 	activities, err := garminClient.FetchActivities(date)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		spinner.Fail("Garmin Connect: " + err.Error())
 		os.Exit(1)
 	}
+	n := len(activities)
+	switch n {
+	case 0:
+		spinner.Success("Garmin Connect · no activities on " + date.Format("2006-01-02"))
+	case 1:
+		spinner.Success("Garmin Connect · 1 activity found")
+	default:
+		spinner.Success(fmt.Sprintf("Garmin Connect · %d activities found", n))
+	}
 
+	// Step 2: build status
 	var statusText, statusEmoji string
-	if len(activities) == 0 {
+	if n == 0 {
 		if !cfg.RestDay.Enabled {
+			pterm.Info.Println("Rest day status disabled — nothing to do.")
 			return
 		}
 		statusText = cfg.RestDay.Text
@@ -77,16 +91,21 @@ func main() {
 	}
 
 	if *dryRun {
-		fmt.Printf("Status text:  %s\n", statusText)
-		fmt.Printf("Status emoji: :%s:\n", statusEmoji)
+		pterm.Info.Println("Dry run — Slack status not changed.")
+		pterm.Println()
+		pterm.Println(pterm.Bold.Sprint("  Status text:  ") + statusText)
+		pterm.Println(pterm.Bold.Sprint("  Status emoji: ") + ":" + statusEmoji + ":")
 		return
 	}
 
+	// Step 3: set Slack status
+	spinner2, _ := pterm.DefaultSpinner.Start("Setting Slack status…")
 	slackClient := slack.New(cfg.Slack.Token)
 	if err := slackClient.SetStatus(statusText, statusEmoji); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		spinner2.Fail("Slack: " + err.Error())
 		os.Exit(1)
 	}
+	spinner2.Success("Slack status set · " + statusText + "  :" + statusEmoji + ":")
 }
 
 func yesterday() time.Time {
