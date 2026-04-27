@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.5](https://github.com/plapko/garminslacknotify/compare/v0.5.4...v0.5.5) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** authenticate with Spring via SSO ticket to obtain SESSIONID ([87367b4](https://github.com/plapko/garminslacknotify/commit/87367b45dffbca6aa4b994eb7ead4ce52a0c237d))
+
 ## [0.5.4](https://github.com/plapko/garminslacknotify/compare/v0.5.3...v0.5.4) (2026-04-27)
 
 
