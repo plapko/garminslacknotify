@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/plapko/garminslacknotify/compare/v0.5.1...v0.5.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** strip Origin/Referer from redirect requests in SSO flow ([7026356](https://github.com/plapko/garminslacknotify/commit/702635663bdb35536cbc6fd635ee11e379be4571))
+
 ## [0.5.1](https://github.com/plapko/garminslacknotify/compare/v0.5.0...v0.5.1) (2026-04-27)
 
 
