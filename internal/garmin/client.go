@@ -211,6 +211,7 @@ func (c *Client) authenticate() error {
 		c.captureJWTFGP()
 		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 		c.ensureAppCSRF()
+		c.warmupSpringSession()
 		return nil
 	}
 
@@ -232,6 +233,7 @@ func (c *Client) authenticate() error {
 	c.captureJWTFGP()
 	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 	c.ensureAppCSRF()
+	c.warmupSpringSession()
 	return nil
 }
 
@@ -265,6 +267,20 @@ func (c *Client) captureJWTFGP() {
 			return
 		}
 	}
+}
+
+// warmupSpringSession requests /modern/ so that Garmin's Java/Spring backend
+// creates a session and sets the SESSIONID cookie. Without this cookie the
+// /gc-api/ endpoints return 403 even with a valid Node.js session.
+func (c *Client) warmupSpringSession() {
+	resp, err := c.http.Get(c.connectBase + "/modern/")
+	if err != nil {
+		c.debugf("warmupSpringSession: error: %v", err)
+		return
+	}
+	io.ReadAll(resp.Body) //nolint:errcheck
+	resp.Body.Close()
+	c.debugf("warmupSpringSession: %s", resp.Status)
 }
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
