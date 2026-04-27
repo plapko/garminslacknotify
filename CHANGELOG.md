@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/plapko/garminslacknotify/compare/v0.2.0...v0.2.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* trigger GoReleaser on release created event instead of tag push ([fdccdb9](https://github.com/plapko/garminslacknotify/commit/fdccdb9cf8f0a78a12711923ae71c54740afb0bd))
+
 ## [0.2.0](https://github.com/plapko/garminslacknotify/compare/v0.1.0...v0.2.0) (2026-04-27)
 
 
