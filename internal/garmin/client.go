@@ -108,6 +108,7 @@ func (c *Client) debugf(format string, args ...any) {
 // once and saves the new session before retrying.
 func (c *Client) FetchActivities(date time.Time) ([]Activity, error) {
 	if c.sessionFile != "" && c.loadSession() == nil {
+		c.captureJWTWEB() // populate jwtWeb for Bearer auth from cached cookies
 		activities, err := c.fetchActivities(date)
 		if err == nil {
 			return activities, nil
