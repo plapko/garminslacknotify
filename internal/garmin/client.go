@@ -88,6 +88,11 @@ type browserTransport struct {
 func (t *browserTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	r := req.Clone(req.Context())
 	r.Header.Set("User-Agent", userAgent)
+	// Chrome 147 Client Hints — Cloudflare cross-checks these against the UA.
+	r.Header.Set("sec-ch-ua", `"Google Chrome";v="147", "Chromium";v="147", "Not/A)Brand";v="24"`)
+	r.Header.Set("sec-ch-ua-mobile", "?0")
+	r.Header.Set("sec-ch-ua-platform", `"Windows"`)
+	r.Header.Set("Accept-Language", "en-US,en;q=0.9")
 	return t.base.RoundTrip(r)
 }
 
@@ -271,29 +276,24 @@ func (c *Client) captureJWTFGP() {
 
 // warmupSpringSession authenticates with Garmin's Java/Spring backend
 // (/modern/, /gc-api/) to obtain an authenticated SESSIONID cookie. Spring is
-// a separate CAS service from the Node.js /app/ frontend; it requires its own
-// CAS service ticket and will not accept the Node.js session cookie.
+// a separate CAS service from the Node.js /app/ frontend and requires its own
+// CAS service ticket.
 //
-// We already hold an active CAS Ticket Granting Cookie (CASTGC) from the SSO
-// POST login. Requesting /sso/signin?service=/modern/ with that cookie causes
-// the SSO to silently issue a new service ticket for Spring without prompting
-// for credentials. Go then follows the redirect chain:
-//   SSO → 302 → /modern/?ticket=ST-xxx → Spring validates → SESSIONID set → /modern/
+// /sso/signin is Garmin's branded form endpoint — it always shows a login page.
+// /sso/login is the standard CAS protocol endpoint: with a valid CASTGC (TGT)
+// cookie it silently issues a new service ticket and redirects to the service URL.
+// Go follows the chain: SSO → /modern/?ticket=ST-xxx → Spring validates → SESSIONID.
 func (c *Client) warmupSpringSession() {
 	params := url.Values{
-		"service":   {c.connectBase + "/modern/"},
-		"clientId":  {"GarminConnect"},
-		"gauthHost": {c.ssoBase + "/sso"},
+		"service": {c.connectBase + "/modern/"},
 	}
-	// Strip Origin/Referer from cross-domain redirects — same reason as in
-	// authenticate(): sending sso.garmin.com as Origin to connect.garmin.com
-	// causes the Spring session to be created in a cross-origin context.
+	// Strip Origin/Referer on cross-domain hops (same reason as in authenticate()).
 	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
 		req.Header.Del("Origin")
 		req.Header.Del("Referer")
 		return nil
 	}
-	resp, err := c.http.Get(c.ssoBase + "/sso/signin?" + params.Encode())
+	resp, err := c.http.Get(c.ssoBase + "/sso/login?" + params.Encode())
 	c.http.CheckRedirect = nil
 	if err != nil {
 		c.debugf("warmupSpringSession: error: %v", err)
@@ -325,7 +325,11 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	q.Set("limit", "100")
 	q.Set("start", "0")
 	req.URL.RawQuery = q.Encode()
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("NK", "NT")
 	if c.appCSRF != "" {
 		req.Header.Set("connect-csrf-token", c.appCSRF)
 	}
