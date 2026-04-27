@@ -12,19 +12,45 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
+      - uses: actions/checkout@v4
+
+      - name: Release Please (with retry)
+        uses: nick-fields/retry@v3
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            # Create GitHub Release for any merged release PRs (no-op if nothing to release)
+            npx --yes release-please@17 github-release \
+              --token "$GH_TOKEN" \
+              --repo-url "$GITHUB_REPOSITORY" \
+              --config-file release-please-config.json \
+              --manifest-file .release-please-manifest.json \
+              --target-branch main || true
+
+            # Create / update the release PR
+            npx release-please@17 release-pr \
+              --token "$GH_TOKEN" \
+              --repo-url "$GITHUB_REPOSITORY" \
+              --config-file release-please-config.json \
+              --manifest-file .release-please-manifest.json \
+              --target-branch main
 
       - name: Auto-merge release PR
-        if: ${{ steps.release.outputs.pr }}
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         run: |
-          # release-please-action v4 outputs pr as a JSON object; extract the number
-          PR_NUMBER=$(echo '${{ steps.release.outputs.pr }}' | jq -r 'if type == "object" then .number else . end')
-          echo "Merging release PR #${PR_NUMBER}"
-          gh pr merge "${PR_NUMBER}" --merge --repo "${{ github.repository }}"
+          PR=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --label "autorelease: pending" \
+            --json number \
+            --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$PR" ] && [ "$PR" != "null" ]; then
+            echo "Merging release PR #$PR"
+            gh pr merge "$PR" --merge --repo "$GITHUB_REPOSITORY"
+          else
+            echo "No release PR to merge"
+          fi
