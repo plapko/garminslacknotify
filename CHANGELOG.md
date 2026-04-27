@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/plapko/garminslacknotify/compare/v0.4.1...v0.4.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* handle {} response from Garmin activities endpoint ([2a0f573](https://github.com/plapko/garminslacknotify/commit/2a0f573606840499286666b6fa4d03a22ab6bce6))
+
 ## [0.4.1](https://github.com/plapko/garminslacknotify/compare/v0.4.0...v0.4.1) (2026-04-27)
 
 
