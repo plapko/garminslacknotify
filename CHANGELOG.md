@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/plapko/garminslacknotify/compare/v0.3.0...v0.3.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* capture Garmin SSO ticket from redirect URL ([f0f3794](https://github.com/plapko/garminslacknotify/commit/f0f37949c1907c649e5b498bdbfa0bcf028c56b5))
+* extract PR number from JSON in auto-merge step ([f0f3794](https://github.com/plapko/garminslacknotify/commit/f0f37949c1907c649e5b498bdbfa0bcf028c56b5))
+
 ## [0.3.0](https://github.com/plapko/garminslacknotify/compare/v0.2.3...v0.3.0) (2026-04-27)
 
 
