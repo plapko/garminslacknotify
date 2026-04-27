@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.6](https://github.com/plapko/garminslacknotify/compare/v0.5.5...v0.5.6) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** add browser fingerprinting headers and use /sso/login for Spring warmup ([b9c37ef](https://github.com/plapko/garminslacknotify/commit/b9c37ef7b0c4e347f3f77f7172509f78f7832f9c))
+
 ## [0.5.5](https://github.com/plapko/garminslacknotify/compare/v0.5.4...v0.5.5) (2026-04-27)
 
 
