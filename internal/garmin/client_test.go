@@ -31,7 +31,7 @@ func mockGarminServer(activities []map[string]interface{}) *httptest.Server {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mux.HandleFunc("/proxy/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/gc-api/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(activities)
 	})
@@ -42,14 +42,16 @@ func mockGarminServer(activities []map[string]interface{}) *httptest.Server {
 func TestFetchActivities_ReturnsActivities(t *testing.T) {
 	raw := []map[string]interface{}{
 		{
-			"activityType": map[string]interface{}{"typeKey": "running"},
-			"duration":     1800.0,
-			"distance":     5000.0,
+			"activityType":   map[string]interface{}{"typeKey": "running"},
+			"duration":       1800.0,
+			"distance":       5000.0,
+			"startTimeLocal": "2026-04-26 10:00:00",
 		},
 		{
-			"activityType": map[string]interface{}{"typeKey": "strength_training"},
-			"duration":     2700.0,
-			"distance":     0.0,
+			"activityType":   map[string]interface{}{"typeKey": "strength_training"},
+			"duration":       2700.0,
+			"distance":       0.0,
+			"startTimeLocal": "2026-04-26 12:00:00",
 		},
 	}
 	srv := mockGarminServer(raw)

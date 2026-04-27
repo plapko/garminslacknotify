@@ -207,26 +207,20 @@ func (c *Client) captureJWTFGP() {
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	dateStr := date.Format("2006-01-02")
-	u := c.connectBase + "/proxy/activitylist-service/activities/search/activities"
+	u := c.connectBase + "/gc-api/activitylist-service/activities/search/activities"
 
 	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
 	q := req.URL.Query()
-	q.Set("startDate", dateStr)
-	q.Set("endDate", dateStr)
 	q.Set("limit", "100")
+	q.Set("start", "0")
 	req.URL.RawQuery = q.Encode()
-	req.Header.Set("NK", "NT")
 	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	if c.appCSRF != "" {
-		req.Header.Set("X-CSRF-Token", c.appCSRF)
-	}
-	// JWT_FGP is path-scoped to /app/ in the cookie jar; add it manually.
-	if c.jwtFGP != "" {
-		req.AddCookie(&http.Cookie{Name: "JWT_FGP", Value: c.jwtFGP})
+		req.Header.Set("connect-csrf-token", c.appCSRF)
 	}
 
 	resp, err := c.http.Do(req)
@@ -239,9 +233,9 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		return nil, err
 	}
 
-	// Garmin returns {} (empty object) when there are no activities for the date.
+	// Garmin returns {} (empty object) or "null" when there are no activities.
 	if s := strings.TrimSpace(string(body)); s == "{}" || s == "null" {
-		c.debugf("activities: empty response (%s) — no activities for this date", s)
+		c.debugf("activities: empty response (%s)", s)
 		return []Activity{}, nil
 	}
 
@@ -249,8 +243,9 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		ActivityType struct {
 			TypeKey string `json:"typeKey"`
 		} `json:"activityType"`
-		Duration float64 `json:"duration"`
-		Distance float64 `json:"distance"`
+		Duration       float64 `json:"duration"`
+		Distance       float64 `json:"distance"`
+		StartTimeLocal string  `json:"startTimeLocal"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		snippet := string(body)
@@ -260,15 +255,19 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		return nil, fmt.Errorf("garmin activities: HTTP %d, unexpected response: %s", resp.StatusCode, snippet)
 	}
 
-	c.debugf("activities: parsed %d items", len(raw))
-	activities := make([]Activity, len(raw))
-	for i, r := range raw {
-		activities[i] = Activity{
+	c.debugf("activities: fetched %d items, filtering for %s", len(raw), dateStr)
+	activities := make([]Activity, 0, len(raw))
+	for _, r := range raw {
+		if !strings.HasPrefix(r.StartTimeLocal, dateStr) {
+			continue
+		}
+		activities = append(activities, Activity{
 			TypeKey:  r.ActivityType.TypeKey,
 			Duration: r.Duration,
 			Distance: r.Distance,
-		}
+		})
 	}
+	c.debugf("activities: %d match date %s", len(activities), dateStr)
 	return activities, nil
 }
 
