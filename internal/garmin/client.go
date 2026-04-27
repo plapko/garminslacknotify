@@ -40,10 +40,9 @@ type Client struct {
 	connectBase  string
 	http         *http.Client
 	debug        io.Writer
-	appCSRF      string // CSRF token from the Garmin Connect app page
-	jwtFGP       string // JWT fingerprint cookie (captured but currently unused)
-	sessionFile  string // path to session cache file; empty disables caching
-	modernCSS    string // /modern/css/... URL extracted from /app/ HTML for Spring warmup
+	appCSRF     string // CSRF token from the Garmin Connect app page
+	jwtFGP      string // JWT fingerprint cookie (captured but currently unused)
+	sessionFile string // path to session cache file; empty disables caching
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
@@ -209,9 +208,8 @@ func (c *Client) authenticate() error {
 	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
-		c.modernCSS = extractModernCSSPath(body2)
 		c.captureJWTFGP()
-		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v, modernCSS: %q)", c.appCSRF != "", c.jwtFGP != "", c.modernCSS)
+		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 		c.ensureAppCSRF()
 		c.warmupSpringSession()
 		return nil
@@ -232,9 +230,8 @@ func (c *Client) authenticate() error {
 	appBody, _ := io.ReadAll(resp3.Body)
 	resp3.Body.Close()
 	c.appCSRF = extractAppCSRF(appBody)
-	c.modernCSS = extractModernCSSPath(appBody)
 	c.captureJWTFGP()
-	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v, modernCSS: %q)", c.appCSRF != "", c.jwtFGP != "", c.modernCSS)
+	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 	c.ensureAppCSRF()
 	c.warmupSpringSession()
 	return nil
@@ -256,9 +253,6 @@ func (c *Client) ensureAppCSRF() {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	c.appCSRF = extractAppCSRF(body)
-	if c.modernCSS == "" {
-		c.modernCSS = extractModernCSSPath(body)
-	}
 	c.captureJWTFGP()
 	c.debugf("ensureAppCSRF: CSRF found=%v", c.appCSRF != "")
 }
@@ -275,26 +269,48 @@ func (c *Client) captureJWTFGP() {
 	}
 }
 
-// warmupSpringSession requests a /modern/css/ static asset so that Garmin's
-// Java/Spring backend creates a session and sets the SESSIONID cookie. Without
-// this cookie the /gc-api/ endpoints return 403 even with a valid Node.js
-// session. The /modern/ root redirects via Cloudflare back to /app/, so we
-// must use a specific asset URL that bypasses the redirect.
+// warmupSpringSession authenticates with Garmin's Java/Spring backend
+// (/modern/, /gc-api/) to obtain an authenticated SESSIONID cookie. Spring is
+// a separate CAS service from the Node.js /app/ frontend; it requires its own
+// CAS service ticket and will not accept the Node.js session cookie.
+//
+// We already hold an active CAS Ticket Granting Cookie (CASTGC) from the SSO
+// POST login. Requesting /sso/signin?service=/modern/ with that cookie causes
+// the SSO to silently issue a new service ticket for Spring without prompting
+// for credentials. Go then follows the redirect chain:
+//   SSO → 302 → /modern/?ticket=ST-xxx → Spring validates → SESSIONID set → /modern/
 func (c *Client) warmupSpringSession() {
-	path := c.modernCSS
-	if path == "" {
-		// Fallback: a known stable static asset that hits the Spring backend.
-		path = "/modern/css/dropzone.min.css"
-		c.debugf("warmupSpringSession: no CSS URL found in /app/ HTML, using fallback")
+	params := url.Values{
+		"service":   {c.connectBase + "/modern/"},
+		"clientId":  {"GarminConnect"},
+		"gauthHost": {c.ssoBase + "/sso"},
 	}
-	resp, err := c.http.Get(c.connectBase + path)
+	// Strip Origin/Referer from cross-domain redirects — same reason as in
+	// authenticate(): sending sso.garmin.com as Origin to connect.garmin.com
+	// causes the Spring session to be created in a cross-origin context.
+	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		req.Header.Del("Origin")
+		req.Header.Del("Referer")
+		return nil
+	}
+	resp, err := c.http.Get(c.ssoBase + "/sso/signin?" + params.Encode())
+	c.http.CheckRedirect = nil
 	if err != nil {
 		c.debugf("warmupSpringSession: error: %v", err)
 		return
 	}
 	io.ReadAll(resp.Body) //nolint:errcheck
 	resp.Body.Close()
-	c.debugf("warmupSpringSession: %s (path: %s)", resp.Status, path)
+
+	modernURL, _ := url.Parse(c.connectBase + "/modern/")
+	var hasSessionID bool
+	for _, ck := range c.http.Jar.Cookies(modernURL) {
+		if ck.Name == "SESSIONID" {
+			hasSessionID = true
+			break
+		}
+	}
+	c.debugf("warmupSpringSession: %s (authenticated SESSIONID: %v)", resp.Status, hasSessionID)
 }
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
@@ -370,7 +386,6 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 var csrfRe = regexp.MustCompile(`name="_csrf"\s+value="([^"]+)"`)
 var appCSRFRe = regexp.MustCompile(`<meta\s+name="csrf-token"\s+content="([^"]+)"`)
 var ticketRe = regexp.MustCompile(`ticket=([A-Za-z0-9_\-]+)`)
-var modernCSSRe = regexp.MustCompile(`href="(/modern/css/[^"]+)"`)
 
 func extractCSRF(body []byte) string {
 	m := csrfRe.FindSubmatch(body)
@@ -396,14 +411,3 @@ func extractTicket(body []byte) string {
 	return string(m[1])
 }
 
-// extractModernCSSPath returns the first /modern/css/... href found in body.
-// This path is a static asset served by Garmin's Spring backend; requesting it
-// triggers Spring Session creation and sets the SESSIONID cookie required for
-// /gc-api/ calls.
-func extractModernCSSPath(body []byte) string {
-	m := modernCSSRe.FindSubmatch(body)
-	if m == nil {
-		return ""
-	}
-	return string(m[1])
-}
