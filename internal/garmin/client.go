@@ -212,6 +212,12 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		return nil, err
 	}
 
+	// Garmin returns {} (empty object) when there are no activities for the date.
+	if s := strings.TrimSpace(string(body)); s == "{}" || s == "null" {
+		c.debugf("activities: empty response (%s) — no activities for this date", s)
+		return []Activity{}, nil
+	}
+
 	var raw []struct {
 		ActivityType struct {
 			TypeKey string `json:"typeKey"`
