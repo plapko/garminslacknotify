@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.8](https://github.com/plapko/garminslacknotify/compare/v0.4.7...v0.4.8) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** add Origin and Referer headers to /gc-api/ activities request ([876bb24](https://github.com/plapko/garminslacknotify/commit/876bb24d29cf05eec1b5866995524021931bce9b))
+
 ## [0.4.7](https://github.com/plapko/garminslacknotify/compare/v0.4.6...v0.4.7) (2026-04-27)
 
 
