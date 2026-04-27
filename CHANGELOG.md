@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.5](https://github.com/plapko/garminslacknotify/compare/v0.4.4...v0.4.5) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** use /gc-api/ endpoint with connect-csrf-token header ([286db04](https://github.com/plapko/garminslacknotify/commit/286db04cba3f9b23cce9837e45b3c7c8e6f9d1fa))
+
 ## [0.4.4](https://github.com/plapko/garminslacknotify/compare/v0.4.3...v0.4.4) (2026-04-27)
 
 
