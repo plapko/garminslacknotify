@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/plapko/garminslacknotify/compare/v0.5.2...v0.5.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* warmup Spring session to obtain SESSIONID before /gc-api/ calls ([6f0c027](https://github.com/plapko/garminslacknotify/commit/6f0c0273363a1c9c24fc0e02960485fe68226b7f))
+
 ## [0.5.2](https://github.com/plapko/garminslacknotify/compare/v0.5.1...v0.5.2) (2026-04-27)
 
 
