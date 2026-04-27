@@ -30,8 +30,27 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if len(cookieNames) > 0 {
 		cookieSummary = strings.Join(cookieNames, ", ")
 	}
-	fmt.Fprintf(t.Out, "[debug] %s → %s %s\n        cookies: %s\n",
-		t.Label, req.Method, req.URL, cookieSummary)
+
+	// Log key request headers so we can verify auth/CSRF headers are present.
+	var hdrs []string
+	for _, name := range []string{
+		"connect-csrf-token", "Origin", "Referer",
+		"X-Requested-With", "Authorization",
+	} {
+		if v := req.Header.Get(name); v != "" {
+			if len(v) > 24 {
+				v = v[:24] + "…"
+			}
+			hdrs = append(hdrs, name+": "+v)
+		}
+	}
+	hdrLine := ""
+	if len(hdrs) > 0 {
+		hdrLine = "\n        req-hdrs: " + strings.Join(hdrs, " | ")
+	}
+
+	fmt.Fprintf(t.Out, "[debug] %s → %s %s\n        cookies: %s%s\n",
+		t.Label, req.Method, req.URL, cookieSummary, hdrLine)
 
 	resp, err := t.Base.RoundTrip(req)
 	if err != nil {
