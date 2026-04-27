@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/plapko/garminslacknotify/compare/v0.4.3...v0.4.4) (2026-04-27)
+
+
+### Bug Fixes
+
+* manually add JWT_FGP cookie to activities request ([351720b](https://github.com/plapko/garminslacknotify/commit/351720b5245bd1596a5a32bd738612db991c7e29))
+
 ## [0.4.3](https://github.com/plapko/garminslacknotify/compare/v0.4.2...v0.4.3) (2026-04-27)
 
 
