@@ -34,15 +34,16 @@ var errSessionExpired = errors.New("garmin session expired")
 
 // Client authenticates with Garmin Connect and fetches activities.
 type Client struct {
-	email       string
-	password    string
-	ssoBase     string
-	connectBase string
-	http        *http.Client
-	debug       io.Writer
-	appCSRF     string // CSRF token from the Garmin Connect app page
-	jwtFGP      string // JWT fingerprint cookie (captured but currently unused)
-	sessionFile string // path to session cache file; empty disables caching
+	email        string
+	password     string
+	ssoBase      string
+	connectBase  string
+	http         *http.Client
+	debug        io.Writer
+	appCSRF      string // CSRF token from the Garmin Connect app page
+	jwtFGP       string // JWT fingerprint cookie (captured but currently unused)
+	sessionFile  string // path to session cache file; empty disables caching
+	modernCSS    string // /modern/css/... URL extracted from /app/ HTML for Spring warmup
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
@@ -208,8 +209,9 @@ func (c *Client) authenticate() error {
 	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
+		c.modernCSS = extractModernCSSPath(body2)
 		c.captureJWTFGP()
-		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+		c.debugf("auth complete via redirect flow (app CSRF: %v, JWT_FGP: %v, modernCSS: %q)", c.appCSRF != "", c.jwtFGP != "", c.modernCSS)
 		c.ensureAppCSRF()
 		c.warmupSpringSession()
 		return nil
@@ -230,8 +232,9 @@ func (c *Client) authenticate() error {
 	appBody, _ := io.ReadAll(resp3.Body)
 	resp3.Body.Close()
 	c.appCSRF = extractAppCSRF(appBody)
+	c.modernCSS = extractModernCSSPath(appBody)
 	c.captureJWTFGP()
-	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v, modernCSS: %q)", c.appCSRF != "", c.jwtFGP != "", c.modernCSS)
 	c.ensureAppCSRF()
 	c.warmupSpringSession()
 	return nil
@@ -253,6 +256,9 @@ func (c *Client) ensureAppCSRF() {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	c.appCSRF = extractAppCSRF(body)
+	if c.modernCSS == "" {
+		c.modernCSS = extractModernCSSPath(body)
+	}
 	c.captureJWTFGP()
 	c.debugf("ensureAppCSRF: CSRF found=%v", c.appCSRF != "")
 }
@@ -269,18 +275,26 @@ func (c *Client) captureJWTFGP() {
 	}
 }
 
-// warmupSpringSession requests /modern/ so that Garmin's Java/Spring backend
-// creates a session and sets the SESSIONID cookie. Without this cookie the
-// /gc-api/ endpoints return 403 even with a valid Node.js session.
+// warmupSpringSession requests a /modern/css/ static asset so that Garmin's
+// Java/Spring backend creates a session and sets the SESSIONID cookie. Without
+// this cookie the /gc-api/ endpoints return 403 even with a valid Node.js
+// session. The /modern/ root redirects via Cloudflare back to /app/, so we
+// must use a specific asset URL that bypasses the redirect.
 func (c *Client) warmupSpringSession() {
-	resp, err := c.http.Get(c.connectBase + "/modern/")
+	path := c.modernCSS
+	if path == "" {
+		// Fallback: a known stable static asset that hits the Spring backend.
+		path = "/modern/css/dropzone.min.css"
+		c.debugf("warmupSpringSession: no CSS URL found in /app/ HTML, using fallback")
+	}
+	resp, err := c.http.Get(c.connectBase + path)
 	if err != nil {
 		c.debugf("warmupSpringSession: error: %v", err)
 		return
 	}
 	io.ReadAll(resp.Body) //nolint:errcheck
 	resp.Body.Close()
-	c.debugf("warmupSpringSession: %s", resp.Status)
+	c.debugf("warmupSpringSession: %s (path: %s)", resp.Status, path)
 }
 
 func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
@@ -356,6 +370,7 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 var csrfRe = regexp.MustCompile(`name="_csrf"\s+value="([^"]+)"`)
 var appCSRFRe = regexp.MustCompile(`<meta\s+name="csrf-token"\s+content="([^"]+)"`)
 var ticketRe = regexp.MustCompile(`ticket=([A-Za-z0-9_\-]+)`)
+var modernCSSRe = regexp.MustCompile(`href="(/modern/css/[^"]+)"`)
 
 func extractCSRF(body []byte) string {
 	m := csrfRe.FindSubmatch(body)
@@ -375,6 +390,18 @@ func extractAppCSRF(body []byte) string {
 
 func extractTicket(body []byte) string {
 	m := ticketRe.FindSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	return string(m[1])
+}
+
+// extractModernCSSPath returns the first /modern/css/... href found in body.
+// This path is a static asset served by Garmin's Spring backend; requesting it
+// triggers Spring Session creation and sets the SESSIONID cookie required for
+// /gc-api/ calls.
+func extractModernCSSPath(body []byte) string {
+	m := modernCSSRe.FindSubmatch(body)
 	if m == nil {
 		return ""
 	}
