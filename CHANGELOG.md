@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7](https://github.com/plapko/garminslacknotify/compare/v0.4.6...v0.4.7) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** fetch /app/ explicitly if CSRF token missing after auth redirect ([1f1d190](https://github.com/plapko/garminslacknotify/commit/1f1d190f12898066d30427a0d5fc4a8c9148ddab))
+
 ## [0.4.6](https://github.com/plapko/garminslacknotify/compare/v0.4.5...v0.4.6) (2026-04-27)
 
 
