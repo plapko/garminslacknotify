@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/plapko/garminslacknotify/compare/v0.2.3...v0.3.0) (2026-04-27)
+
+
+### Features
+
+* add rich terminal UI with spinners and colored output ([a5e11a3](https://github.com/plapko/garminslacknotify/commit/a5e11a36442d2c9b4237b5a3a0274e64d89e1a7a))
+
+
+### Bug Fixes
+
+* add XMLHttpRequest header and improve activities error message ([a924938](https://github.com/plapko/garminslacknotify/commit/a924938f54f9ec0a70d5ffaf59be9c93fb66a86e))
+
 ## [0.2.3](https://github.com/plapko/garminslacknotify/compare/v0.2.2...v0.2.3) (2026-04-27)
 
 
