@@ -111,7 +111,19 @@ func (c *Client) authenticate() error {
 	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req2.Header.Set("Origin", c.ssoBase)
 	req2.Header.Set("Referer", signinURL+"?"+params.Encode())
+
+	// Modern Garmin SSO redirects POST → 302 → connect.garmin.com/modern/?ticket=ST-XXX.
+	// Go's http.Client follows the redirect automatically (setting session cookies),
+	// so we capture the ticket URL via CheckRedirect before the body is consumed.
+	var ticketFoundInRedirect bool
+	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		if extractTicket([]byte(req.URL.String())) != "" {
+			ticketFoundInRedirect = true
+		}
+		return nil
+	}
 	resp2, err := c.http.Do(req2)
+	c.http.CheckRedirect = nil
 	if err != nil {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
@@ -121,6 +133,12 @@ func (c *Client) authenticate() error {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
 
+	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
+	if ticketFoundInRedirect {
+		return nil
+	}
+
+	// Legacy embed=true flow: ticket embedded in response body.
 	ticket := extractTicket(body2)
 	if ticket == "" {
 		return errors.New("garmin login failed — check credentials")

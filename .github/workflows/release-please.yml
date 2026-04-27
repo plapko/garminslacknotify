@@ -23,4 +23,8 @@ jobs:
         if: ${{ steps.release.outputs.pr }}
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-        run: gh pr merge --merge "${{ steps.release.outputs.pr }}" --repo ${{ github.repository }}
+        run: |
+          # release-please-action v4 outputs pr as a JSON object; extract the number
+          PR_NUMBER=$(echo '${{ steps.release.outputs.pr }}' | jq -r 'if type == "object" then .number else . end')
+          echo "Merging release PR #${PR_NUMBER}"
+          gh pr merge "${PR_NUMBER}" --merge --repo "${{ github.repository }}"
