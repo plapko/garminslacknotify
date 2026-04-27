@@ -21,14 +21,15 @@ func mockGarminServer(activities []map[string]interface{}) *httptest.Server {
 			fmt.Fprint(w, `<input name="_csrf" value="test-csrf-token">`)
 			return
 		}
-		// POST: set cookie and return page with ticket
+		// POST: redirect to /app/?ticket=... (modern flow, no embed=true)
 		http.SetCookie(w, &http.Cookie{Name: "CASTGC", Value: "TGT-test"})
-		fmt.Fprint(w, `<a href="/modern/?ticket=ST-test-ticket">continue</a>`)
+		http.Redirect(w, r, "/app/?ticket=ST-test-ticket", http.StatusFound)
 	})
 
-	mux.HandleFunc("/modern/", func(w http.ResponseWriter, r *http.Request) {
-		http.SetCookie(w, &http.Cookie{Name: "SESSIONID", Value: "test-session"})
-		w.WriteHeader(http.StatusOK)
+	mux.HandleFunc("/app/", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{Name: "session", Value: "test-session"})
+		// Serve a minimal app page with the CSRF meta tag.
+		fmt.Fprint(w, `<html><head><meta name="csrf-token" content="test-app-csrf"/></head></html>`)
 	})
 
 	mux.HandleFunc("/gc-api/activitylist-service/activities/search/activities", func(w http.ResponseWriter, r *http.Request) {

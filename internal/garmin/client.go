@@ -102,8 +102,10 @@ func (c *Client) FetchActivities(date time.Time) ([]Activity, error) {
 
 func (c *Client) authenticate() error {
 	signinURL := c.ssoBase + "/sso/signin"
+	// Use /app/ as the service URL — Garmin's new Connect app lives there.
+	// Requesting /modern/ causes a re-authentication loop through the SSO portal.
 	params := url.Values{
-		"service":   {c.connectBase + "/modern/"},
+		"service":   {c.connectBase + "/app/"},
 		"clientId":  {"GarminConnect"},
 		"gauthHost": {c.ssoBase + "/sso"},
 	}
@@ -125,12 +127,13 @@ func (c *Client) authenticate() error {
 		c.debugf("CSRF token: found")
 	}
 
+	// Omit embed=true so Garmin issues a redirect (not an embedded ticket in the body).
+	// Go's http.Client follows the 302 → /app/?ticket=... automatically, setting session cookies.
 	form := url.Values{
 		"username":  {c.email},
 		"password":  {c.password},
-		"embed":     {"true"},
 		"_csrf":     {csrf},
-		"service":   {c.connectBase + "/modern/"},
+		"service":   {c.connectBase + "/app/"},
 		"clientId":  {"GarminConnect"},
 		"gauthHost": {c.ssoBase + "/sso"},
 	}
@@ -142,9 +145,8 @@ func (c *Client) authenticate() error {
 	req2.Header.Set("Origin", c.ssoBase)
 	req2.Header.Set("Referer", signinURL+"?"+params.Encode())
 
-	// Modern Garmin SSO redirects POST → 302 → connect.garmin.com/modern/?ticket=ST-XXX.
-	// Go's http.Client follows the redirect automatically (setting session cookies),
-	// so we capture the ticket URL via CheckRedirect before the body is consumed.
+	// Garmin SSO redirects POST → 302 → /app/?ticket=ST-XXX.
+	// Go follows the redirect automatically; we capture the ticket URL to detect success.
 	var ticketFoundInRedirect bool
 	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
 		if extractTicket([]byte(req.URL.String())) != "" {
@@ -170,7 +172,7 @@ func (c *Client) authenticate() error {
 	}
 
 	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
-	// body2 is the final page (usually /app/) — extract its CSRF token for API requests.
+	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
 		c.appCSRF = extractAppCSRF(body2)
 		c.captureJWTFGP()
@@ -179,15 +181,15 @@ func (c *Client) authenticate() error {
 		return nil
 	}
 
-	// Legacy embed=true flow: ticket embedded in response body.
+	// Fallback: some SSO variants still embed the ticket in the body.
 	ticket := extractTicket(body2)
 	if ticket == "" {
-		c.debugf("ticket: not found (neither in redirect nor body) — status %d, wrong credentials?", resp2.StatusCode)
+		c.debugf("ticket: not found (neither in redirect nor body) — status %d", resp2.StatusCode)
 		return errors.New("garmin login failed — check credentials")
 	}
-	c.debugf("ticket: found in response body (legacy flow)")
+	c.debugf("ticket: found in response body (fallback flow)")
 
-	resp3, err := c.http.Get(c.connectBase + "/modern/?ticket=" + ticket)
+	resp3, err := c.http.Get(c.connectBase + "/app/?ticket=" + ticket)
 	if err != nil {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
@@ -195,7 +197,7 @@ func (c *Client) authenticate() error {
 	resp3.Body.Close()
 	c.appCSRF = extractAppCSRF(appBody)
 	c.captureJWTFGP()
-	c.debugf("auth complete via body/ticket flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
+	c.debugf("auth complete via fallback/body flow (app CSRF: %v, JWT_FGP: %v)", c.appCSRF != "", c.jwtFGP != "")
 	c.ensureAppCSRF()
 	return nil
 }
