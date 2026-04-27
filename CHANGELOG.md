@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/plapko/garminslacknotify/compare/v0.2.1...v0.2.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* use PAT for release-please to allow GoReleaser workflow trigger ([38298c3](https://github.com/plapko/garminslacknotify/commit/38298c36e99b853ba7e91a96e6b7fb106c97a7f0))
+
 ## [0.2.1](https://github.com/plapko/garminslacknotify/compare/v0.2.0...v0.2.1) (2026-04-27)
 
 
