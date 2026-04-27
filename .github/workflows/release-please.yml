@@ -23,15 +23,15 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
-            # Create GitHub Release for any merged release PRs (no-op if nothing to release)
+            # Create GitHub Release + tag for any merged release PRs.
             npx --yes release-please@17 github-release \
               --token "$GH_TOKEN" \
               --repo-url "$GITHUB_REPOSITORY" \
               --config-file release-please-config.json \
               --manifest-file .release-please-manifest.json \
-              --target-branch main || true
+              --target-branch main
 
-            # Create / update the release PR
+            # Create / update the release PR.
             npx release-please@17 release-pr \
               --token "$GH_TOKEN" \
               --repo-url "$GITHUB_REPOSITORY" \
@@ -43,14 +43,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
         run: |
+          # Search by branch name — more reliable than label-based search.
           PR=$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
-            --label "autorelease: pending" \
+            --head "release-please--branches--main" \
+            --state open \
             --json number \
             --jq '.[0].number' 2>/dev/null || true)
           if [ -n "$PR" ] && [ "$PR" != "null" ]; then
             echo "Merging release PR #$PR"
             gh pr merge "$PR" --merge --repo "$GITHUB_REPOSITORY"
           else
-            echo "No release PR to merge"
+            echo "No open release PR to merge"
           fi
