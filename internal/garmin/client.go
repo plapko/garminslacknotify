@@ -36,6 +36,7 @@ type Client struct {
 	connectBase string
 	http        *http.Client
 	debug       io.Writer
+	appCSRF     string // CSRF token from the Garmin Connect app page
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
@@ -163,8 +164,10 @@ func (c *Client) authenticate() error {
 	}
 
 	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
+	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
-		c.debugf("auth complete via redirect flow")
+		c.appCSRF = extractAppCSRF(body2)
+		c.debugf("auth complete via redirect flow (app CSRF: %v)", c.appCSRF != "")
 		return nil
 	}
 
@@ -180,8 +183,10 @@ func (c *Client) authenticate() error {
 	if err != nil {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
+	appBody, _ := io.ReadAll(resp3.Body)
 	resp3.Body.Close()
-	c.debugf("auth complete via body/ticket flow")
+	c.appCSRF = extractAppCSRF(appBody)
+	c.debugf("auth complete via body/ticket flow (app CSRF: %v)", c.appCSRF != "")
 	return nil
 }
 
@@ -201,6 +206,9 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	req.Header.Set("NK", "NT")
 	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	if c.appCSRF != "" {
+		req.Header.Set("X-CSRF-Token", c.appCSRF)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -246,10 +254,19 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 }
 
 var csrfRe = regexp.MustCompile(`name="_csrf"\s+value="([^"]+)"`)
+var appCSRFRe = regexp.MustCompile(`<meta\s+name="csrf-token"\s+content="([^"]+)"`)
 var ticketRe = regexp.MustCompile(`ticket=([A-Za-z0-9_\-]+)`)
 
 func extractCSRF(body []byte) string {
 	m := csrfRe.FindSubmatch(body)
+	if m == nil {
+		return ""
+	}
+	return string(m[1])
+}
+
+func extractAppCSRF(body []byte) string {
+	m := appCSRFRe.FindSubmatch(body)
 	if m == nil {
 		return ""
 	}
