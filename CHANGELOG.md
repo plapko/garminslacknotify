@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/plapko/garminslacknotify/compare/v0.3.1...v0.4.0) (2026-04-27)
+
+
+### Features
+
+* add --debug flag for HTTP and auth troubleshooting ([f36978d](https://github.com/plapko/garminslacknotify/commit/f36978d36f884f6c5825207e0f2cb81495e02879))
+
 ## [0.3.1](https://github.com/plapko/garminslacknotify/compare/v0.3.0...v0.3.1) (2026-04-27)
 
 
