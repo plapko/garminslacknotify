@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/plapko/garminslacknotify/compare/v0.4.9...v0.5.0) (2026-04-27)
+
+
+### Features
+
+* **garmin:** cache session cookies to avoid SSO on every cron run ([ecf79d8](https://github.com/plapko/garminslacknotify/commit/ecf79d86669eb03e1c3730a2b94a8b5907ffc5a4))
+
 ## [0.4.9](https://github.com/plapko/garminslacknotify/compare/v0.4.8...v0.4.9) (2026-04-27)
 
 
