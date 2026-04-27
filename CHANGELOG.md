@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/plapko/garminslacknotify/compare/v0.4.0...v0.4.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* use /proxy/ prefix for Garmin activities endpoint ([09aa418](https://github.com/plapko/garminslacknotify/commit/09aa418e772806bba48bce8a5825ed0585c027a1))
+
 ## [0.4.0](https://github.com/plapko/garminslacknotify/compare/v0.3.1...v0.4.0) (2026-04-27)
 
 
