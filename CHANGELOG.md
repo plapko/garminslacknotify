@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.6](https://github.com/plapko/garminslacknotify/compare/v0.4.5...v0.4.6) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** return clear error on 429 rate limit instead of misleading 'check credentials' ([d381dd9](https://github.com/plapko/garminslacknotify/commit/d381dd92afba3e9e0af4af2bd45619bc70087f4e))
+
 ## [0.4.5](https://github.com/plapko/garminslacknotify/compare/v0.4.4...v0.4.5) (2026-04-27)
 
 
