@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/plapko/garminslacknotify/compare/v0.2.2...v0.2.3) (2026-04-27)
+
+
+### Bug Fixes
+
+* add browser headers to Garmin SSO requests ([3839a1b](https://github.com/plapko/garminslacknotify/commit/3839a1baf78442e3b20dbcb1f7d71f35de5f37c4))
+
 ## [0.2.2](https://github.com/plapko/garminslacknotify/compare/v0.2.1...v0.2.2) (2026-04-27)
 
 
