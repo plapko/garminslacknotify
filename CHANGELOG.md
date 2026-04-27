@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.7](https://github.com/plapko/garminslacknotify/compare/v0.5.6...v0.5.7) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** remove warmup that caused CSRF mismatch, add JWT_WEB Bearer auth ([d596542](https://github.com/plapko/garminslacknotify/commit/d596542d09c7bd43a3ed672ba6598090fcfa9b32))
+
 ## [0.5.6](https://github.com/plapko/garminslacknotify/compare/v0.5.5...v0.5.6) (2026-04-27)
 
 
