@@ -48,9 +48,12 @@ func (c *Config) Validate() error {
 	if c.Slack.Token == "" {
 		return errors.New("slack.token is required")
 	}
-	if c.RestDay.Text == "" {
+	if c.RestDay.Text == "" && c.RestDay.Emoji == "" {
+		// Whole rest_day section appears unconfigured — apply all defaults
 		c.RestDay.Enabled = true
 		c.RestDay.Text = "Rest day"
+		c.RestDay.Emoji = "sleeping"
+	} else if c.RestDay.Emoji == "" {
 		c.RestDay.Emoji = "sleeping"
 	}
 	return nil
