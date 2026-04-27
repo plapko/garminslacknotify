@@ -164,6 +164,11 @@ func (c *Client) authenticate() error {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
 
+	if resp2.StatusCode == http.StatusTooManyRequests {
+		c.debugf("login POST returned 429 — rate limited")
+		return errors.New("garmin login failed: rate limited (429) — wait a few minutes and try again")
+	}
+
 	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
 	// body2 is the final /app/ page — extract its CSRF token for API requests.
 	if ticketFoundInRedirect {
@@ -176,7 +181,7 @@ func (c *Client) authenticate() error {
 	// Legacy embed=true flow: ticket embedded in response body.
 	ticket := extractTicket(body2)
 	if ticket == "" {
-		c.debugf("ticket: not found (neither in redirect nor body) — wrong credentials?")
+		c.debugf("ticket: not found (neither in redirect nor body) — status %d, wrong credentials?", resp2.StatusCode)
 		return errors.New("garmin login failed — check credentials")
 	}
 	c.debugf("ticket: found in response body (legacy flow)")
