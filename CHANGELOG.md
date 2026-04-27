@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.9](https://github.com/plapko/garminslacknotify/compare/v0.4.8...v0.4.9) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** use service=/app/ and drop embed=true in SSO login ([f845aa3](https://github.com/plapko/garminslacknotify/commit/f845aa366c516e773e5aa907e540d96e137fb08a))
+
 ## [0.4.8](https://github.com/plapko/garminslacknotify/compare/v0.4.7...v0.4.8) (2026-04-27)
 
 
