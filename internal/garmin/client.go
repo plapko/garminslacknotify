@@ -174,8 +174,14 @@ func (c *Client) authenticate() error {
 
 	// Garmin SSO redirects POST → 302 → /app/?ticket=ST-XXX.
 	// Go follows the redirect automatically; we capture the ticket URL to detect success.
+	// We also strip Origin and Referer from redirect requests: browsers clear these on
+	// cross-domain hops, but Go preserves them. Sending Origin: sso.garmin.com to
+	// connect.garmin.com causes the session to be established in a cross-origin context,
+	// which blocks subsequent /gc-api/ requests.
 	var ticketFoundInRedirect bool
 	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		req.Header.Del("Origin")
+		req.Header.Del("Referer")
 		if extractTicket([]byte(req.URL.String())) != "" {
 			ticketFoundInRedirect = true
 			c.debugf("ticket: found in redirect → %s", req.URL)
