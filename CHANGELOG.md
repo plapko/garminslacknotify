@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/plapko/garminslacknotify/compare/v0.5.3...v0.5.4) (2026-04-27)
+
+
+### Bug Fixes
+
+* **garmin:** fetch specific /modern/css/ asset to warm up Spring session ([8a31ce2](https://github.com/plapko/garminslacknotify/commit/8a31ce26fab1c56baf7ca74152fd68d4a91fadc0))
+
 ## [0.5.3](https://github.com/plapko/garminslacknotify/compare/v0.5.2...v0.5.3) (2026-04-27)
 
 
