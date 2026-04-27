@@ -18,7 +18,7 @@ import (
 const (
 	defaultSSOBase     = "https://sso.garmin.com"
 	defaultConnectBase = "https://connect.garmin.com"
-	userAgent          = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	userAgent          = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
 )
 
 // Activity holds the workout data needed for status formatting.
@@ -273,10 +273,7 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 	q.Set("limit", "100")
 	q.Set("start", "0")
 	req.URL.RawQuery = q.Encode()
-	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("Origin", c.connectBase)
-	req.Header.Set("Referer", c.connectBase+"/app/")
+	req.Header.Set("Accept", "application/json")
 	if c.appCSRF != "" {
 		req.Header.Set("connect-csrf-token", c.appCSRF)
 	}
