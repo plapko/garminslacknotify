@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/plapko/garminslacknotify/internal/httpdebug"
 )
 
 const (
@@ -33,16 +35,30 @@ type Client struct {
 	ssoBase     string
 	connectBase string
 	http        *http.Client
+	debug       io.Writer
 }
 
 // New creates a Client using the real Garmin Connect endpoints.
 func New(email, password string) *Client {
-	return NewWithBaseURL(email, password, defaultSSOBase, defaultConnectBase)
+	return build(email, password, defaultSSOBase, defaultConnectBase, nil)
 }
 
 // NewWithBaseURL creates a Client with custom base URLs (used in tests).
 func NewWithBaseURL(email, password, ssoBase, connectBase string) *Client {
+	return build(email, password, ssoBase, connectBase, nil)
+}
+
+// NewWithDebug creates a Client that writes HTTP and auth debug info to debug.
+func NewWithDebug(email, password string, debug io.Writer) *Client {
+	return build(email, password, defaultSSOBase, defaultConnectBase, debug)
+}
+
+func build(email, password, ssoBase, connectBase string, debug io.Writer) *Client {
 	jar, _ := cookiejar.New(nil)
+	var base http.RoundTripper = http.DefaultTransport
+	if debug != nil {
+		base = &httpdebug.Transport{Base: base, Out: debug, Label: "garmin"}
+	}
 	return &Client{
 		email:       email,
 		password:    password,
@@ -50,8 +66,9 @@ func NewWithBaseURL(email, password, ssoBase, connectBase string) *Client {
 		connectBase: connectBase,
 		http: &http.Client{
 			Jar:       jar,
-			Transport: &browserTransport{base: http.DefaultTransport},
+			Transport: &browserTransport{base: base},
 		},
+		debug: debug,
 	}
 }
 
@@ -65,6 +82,12 @@ func (t *browserTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	r := req.Clone(req.Context())
 	r.Header.Set("User-Agent", userAgent)
 	return t.base.RoundTrip(r)
+}
+
+func (c *Client) debugf(format string, args ...any) {
+	if c.debug != nil {
+		fmt.Fprintf(c.debug, "[debug] garmin   "+format+"\n", args...)
+	}
 }
 
 // FetchActivities authenticates and returns activities for the given date.
@@ -94,6 +117,11 @@ func (c *Client) authenticate() error {
 	}
 
 	csrf := extractCSRF(body)
+	if csrf == "" {
+		c.debugf("CSRF token: not found in signin page")
+	} else {
+		c.debugf("CSRF token: found")
+	}
 
 	form := url.Values{
 		"username":  {c.email},
@@ -119,6 +147,7 @@ func (c *Client) authenticate() error {
 	c.http.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
 		if extractTicket([]byte(req.URL.String())) != "" {
 			ticketFoundInRedirect = true
+			c.debugf("ticket: found in redirect → %s", req.URL)
 		}
 		return nil
 	}
@@ -135,20 +164,24 @@ func (c *Client) authenticate() error {
 
 	// Modern flow: ticket was in redirect URL; Go already followed it and set cookies.
 	if ticketFoundInRedirect {
+		c.debugf("auth complete via redirect flow")
 		return nil
 	}
 
 	// Legacy embed=true flow: ticket embedded in response body.
 	ticket := extractTicket(body2)
 	if ticket == "" {
+		c.debugf("ticket: not found (neither in redirect nor body) — wrong credentials?")
 		return errors.New("garmin login failed — check credentials")
 	}
+	c.debugf("ticket: found in response body (legacy flow)")
 
 	resp3, err := c.http.Get(c.connectBase + "/modern/?ticket=" + ticket)
 	if err != nil {
 		return fmt.Errorf("garmin login failed: %w", err)
 	}
 	resp3.Body.Close()
+	c.debugf("auth complete via body/ticket flow")
 	return nil
 }
 
@@ -194,6 +227,7 @@ func (c *Client) fetchActivities(date time.Time) ([]Activity, error) {
 		return nil, fmt.Errorf("garmin activities: HTTP %d, unexpected response: %s", resp.StatusCode, snippet)
 	}
 
+	c.debugf("activities: parsed %d items", len(raw))
 	activities := make([]Activity, len(raw))
 	for i, r := range raw {
 		activities[i] = Activity{

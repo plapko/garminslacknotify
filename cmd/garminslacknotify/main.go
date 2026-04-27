@@ -21,6 +21,7 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "print resulting status without setting it in Slack")
 	dateStr := flag.String("date", "", "target date YYYY-MM-DD (default: yesterday)")
 	showVersion := flag.Bool("version", false, "show version and exit")
+	debug := flag.Bool("debug", false, "print HTTP requests/responses and auth details to stderr")
 	flag.Usage = printUsage
 	flag.Parse()
 
@@ -60,7 +61,12 @@ func main() {
 
 	// Step 1: fetch Garmin activities
 	spinner, _ := pterm.DefaultSpinner.Start("Connecting to Garmin Connect…")
-	garminClient := garmin.New(cfg.Garmin.Email, cfg.Garmin.Password)
+	var garminClient *garmin.Client
+	if *debug {
+		garminClient = garmin.NewWithDebug(cfg.Garmin.Email, cfg.Garmin.Password, os.Stderr)
+	} else {
+		garminClient = garmin.New(cfg.Garmin.Email, cfg.Garmin.Password)
+	}
 	activities, err := garminClient.FetchActivities(date)
 	if err != nil {
 		spinner.Fail("Garmin Connect: " + err.Error())
@@ -100,7 +106,12 @@ func main() {
 
 	// Step 3: set Slack status
 	spinner2, _ := pterm.DefaultSpinner.Start("Setting Slack status…")
-	slackClient := slack.New(cfg.Slack.Token)
+	var slackClient *slack.Client
+	if *debug {
+		slackClient = slack.NewWithDebug(cfg.Slack.Token, os.Stderr)
+	} else {
+		slackClient = slack.New(cfg.Slack.Token)
+	}
 	if err := slackClient.SetStatus(statusText, statusEmoji); err != nil {
 		spinner2.Fail("Slack: " + err.Error())
 		os.Exit(1)
@@ -127,6 +138,7 @@ Flags:
   --dry-run   print resulting status without setting it in Slack
   --date      override target date (YYYY-MM-DD, default: yesterday)
   --version   show version and exit
+  --debug     print HTTP requests/responses and auth details to stderr
   --help      show this help
 
 Examples:
@@ -134,6 +146,7 @@ Examples:
   garminslacknotify --dry-run            preview status, don't set it
   garminslacknotify --date 2026-04-20    check a specific past date
   garminslacknotify --config ~/my.yaml   use custom config path
+  garminslacknotify --debug 2>debug.log  save debug output to file
 
 `)
 }
