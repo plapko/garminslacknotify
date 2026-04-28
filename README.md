@@ -70,7 +70,7 @@ crontab -e
 Add this line:
 
 ```
-0 7 * * * /usr/local/bin/garminslacknotify >> /var/log/garminslacknotify.log 2>&1
+0 7 * * * /usr/local/bin/garminslacknotify >> $HOME/garminslacknotify.log 2>&1
 ```
 
 ## Usage
