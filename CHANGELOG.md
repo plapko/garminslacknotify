@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/plapko/garminslacknotify/compare/v1.0.1...v1.0.2) (2026-04-28)
+
+
+### Bug Fixes
+
+* normalize Garmin activity subtypes for emoji selection ([f2d4ca2](https://github.com/plapko/garminslacknotify/commit/f2d4ca2bb617092610076c611ec770e738796f3e))
+
 ## [1.0.1](https://github.com/plapko/garminslacknotify/compare/v1.0.0...v1.0.1) (2026-04-27)
 
 
